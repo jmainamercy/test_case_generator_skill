@@ -38,11 +38,131 @@ Google Sheets, containing:
 | **Traceability Matrix** | Maps every user story and acceptance criterion to its test case IDs and coverage status                                                                              |
 | **Validation Summary**  | Documents requirement gaps, assumptions made, coverage stats, and any quality-gate findings                                                                          |
 
+## Notion MCP Publishing
+
+The test-case generator supports publishing generated test cases to Notion when the execution environment has a working Notion MCP connection.
+
+Notion publishing is optional.
+
+The normal Excel generation workflow continues to work even when Notion MCP is unavailable.
+
+### Requirements
+
+You need:
+
+1. This skill installed in the AI agent.
+2. Notion MCP configured in the AI agent's execution environment.
+3. Access to the Notion page or database where the test cases should be published.
+
+The skill does not store Notion credentials or API tokens.
+
+Authentication is handled by the MCP/client environment.
+
+---
+
+## Publishing to Notion
+
+After the skill has generated the test cases, ask:
+
+> Generate the test cases and publish them to Notion.
+
+If a Notion destination has already been provided, the skill should use that destination.
+
+You can also provide a specific Notion destination:
+
+> Generate the test cases and publish them to this Notion database: [Notion URL]
+
+The skill will:
+
+1. Parse the requirements.
+2. Validate the requirements.
+3. Generate the test cases.
+4. Generate the traceability matrix.
+5. Validate test coverage.
+6. Generate the Excel workbook.
+7. Inspect the Notion destination.
+8. Map the generated test cases to the Notion schema.
+9. Create or update the Notion records.
+10. Verify the published records.
+11. Return the Excel output and Notion publication status.
+
+---
+
+## Recommended Notion Database
+
+For long-term test-case management, create a Notion database with properties similar to:
+
+| Property            | Type        |
+| ------------------- | ----------- |
+| Test Case ID        | Title/Text  |
+| Test Case Title     | Text        |
+| Project             | Select/Text |
+| Feature             | Select/Text |
+| Requirement ID      | Text        |
+| User Story          | Text        |
+| Acceptance Criteria | Text        |
+| Preconditions       | Text        |
+| Test Data           | Text        |
+| Steps               | Text        |
+| Expected Results    | Text        |
+| Actual Results      | Text        |
+| Test Type           | Select      |
+| Testing Type        | Select      |
+| Priority            | Select      |
+| Severity            | Select      |
+| Status              | Select      |
+| Source              | URL/Text    |
+| Generated At        | Date        |
+
+The skill will inspect the actual Notion database schema rather than assuming these exact property names.
+
+---
+
+## Example Commands
+
+### Generate Excel only
+
+> Generate test cases from this user story.
+
+### Generate Excel and publish to Notion
+
+> Generate the test cases and publish them to Notion.
+
+### Publish to a specific destination
+
+> Generate the test cases and publish them to this Notion database: [Notion URL]
+
+### Synchronize existing test cases
+
+> Generate the updated test cases and sync them with the existing Notion test-case database.
+
+### Update existing Notion records
+
+> Update the Notion test cases using the latest acceptance criteria.
+
+---
+
+## Notion Publication Safety
+
+The skill must never claim that test cases were published unless the Notion MCP operation succeeded.
+
+If Notion MCP is unavailable, the skill should still generate the Excel workbook.
+
+The response should clearly state:
+
+```text
+Excel: Generated
+Notion: Not published
+Reason: Notion MCP is unavailable in the current execution environment.
+```
+
 ## Files
 
 ```
 test-case-generator/
 ├── SKILL.md                              # Main workflow instructions
+├── config/
+│   └── notion.md
 ├── references/
 │   ├── validation-and-ambiguity.md       # How to tell a requirement from an assumption
 │   ├── test-design-techniques.md         # When and how to apply each testing technique

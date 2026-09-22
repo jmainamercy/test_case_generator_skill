@@ -1,0 +1,269 @@
+# Notion Publishing Configuration
+
+## Purpose
+
+This document defines how the test-case-generator skill interacts with Notion through an available Notion MCP connection.
+
+Notion is an optional publishing destination.
+
+The skill must remain fully functional when Notion MCP is unavailable.
+
+---
+
+## Required Capabilities
+
+The execution environment should provide Notion MCP capabilities that allow the agent to perform, where supported:
+
+- Search Notion
+- Read Notion pages
+- Read Notion databases
+- Inspect database properties/schema
+- Create Notion pages
+- Create database records/pages
+- Update existing Notion pages or database records
+- Retrieve resulting page/database URLs or identifiers
+
+Do not assume specific MCP tool names.
+
+Use the actual Notion MCP tools exposed by the current execution environment.
+
+---
+
+## Destination
+
+The publishing destination must come from one of the following:
+
+1. A Notion page/database explicitly provided by the user.
+2. A destination identified earlier in the current conversation.
+3. An explicitly configured default destination.
+4. The user after being asked for a destination.
+
+Never publish to an arbitrary Notion page.
+
+---
+
+## Recommended Destination
+
+A Notion database is preferred for test cases because it allows:
+
+- filtering;
+- sorting;
+- searching;
+- assigning statuses;
+- tracking execution;
+- updating individual test cases;
+- linking requirements to test cases;
+- maintaining test cases over time.
+
+The Excel workbook should remain the portable/exportable artifact.
+
+Notion should function as the collaborative test-case management destination.
+
+---
+
+## Recommended Notion Database Schema
+
+A recommended database can contain the following properties:
+
+| Property            | Suggested Type | Purpose                                        |
+| ------------------- | -------------- | ---------------------------------------------- |
+| Test Case ID        | Title/Text     | Unique test-case identifier                    |
+| Test Case Title     | Text           | Human-readable test-case name                  |
+| Project             | Select/Text    | Project name                                   |
+| Feature             | Select/Text    | Feature being tested                           |
+| User Story          | Text           | Source user story                              |
+| Requirement ID      | Text           | Requirement or acceptance criterion identifier |
+| Acceptance Criteria | Text           | Acceptance criterion being validated           |
+| Preconditions       | Text           | Conditions required before execution           |
+| Test Data           | Text           | Data required for execution                    |
+| Steps               | Text           | Test execution steps                           |
+| Expected Results    | Text           | Expected outcome                               |
+| Actual Results      | Text           | Execution result; initially blank              |
+| Test Type           | Select         | Positive, Negative, Boundary, etc.             |
+| Testing Type        | Select         | Functional, Integration, Regression, etc.      |
+| Priority            | Select         | Requirement/test priority                      |
+| Severity            | Select         | Defect severity                                |
+| Status              | Select         | Not Run, Passed, Failed, Blocked, etc.         |
+| Source              | Text/URL       | Source requirement or ticket                   |
+| Generated At        | Date           | Generation timestamp                           |
+
+The actual database schema must always be inspected before publishing.
+
+---
+
+## Publishing Structure
+
+If publishing to a Notion page instead of a database, use the following structure:
+
+# Test Case Generation
+
+## Overview
+
+Include:
+
+- Project
+- Feature
+- Source
+- Generation date
+- Number of requirements
+- Number of test cases
+- Number of clarification items
+
+## Validation Summary
+
+Include:
+
+- Requirements analyzed
+- Ambiguities
+- Contradictions
+- Missing information
+- Requirements requiring clarification
+
+## Test Cases
+
+Include every generated test case.
+
+Each test case should preserve:
+
+- Test Case ID
+- Requirement ID
+- User Story
+- Acceptance Criteria
+- Title
+- Preconditions
+- Test Data
+- Steps
+- Expected Results
+- Test Type
+- Testing Type
+- Priority
+- Severity
+- Actual Results
+- Status
+
+## Requirements Traceability Matrix
+
+Preserve the same requirement-to-test-case relationships used in the generated Excel workbook.
+
+## Clarifications Required
+
+List requirements that could not be safely converted into complete test cases because of ambiguity, contradiction, or missing information.
+
+## Generation Metadata
+
+Include:
+
+- Source document/ticket
+- Generation timestamp
+- Skill version when available
+- Publishing status
+
+---
+
+## Data Integrity Rules
+
+The Notion content must represent the validated test cases generated by this skill.
+
+Do not:
+
+- invent requirements;
+- invent acceptance criteria;
+- change expected results;
+- remove negative test cases;
+- remove boundary test cases;
+- change test-case IDs;
+- silently modify priorities;
+- silently modify severity;
+- mark tests as Passed or Failed without execution evidence;
+- populate Actual Results without user-provided execution results.
+
+---
+
+## Duplicate Prevention
+
+The preferred unique identifier is:
+
+`Test Case ID`
+
+Before creating a new test-case record:
+
+1. Search the destination database/page.
+2. Check whether the Test Case ID already exists.
+3. If it does not exist, create the record.
+4. If it exists and synchronization was requested, update the existing record.
+5. If it exists but synchronization was not requested, do not overwrite it silently.
+
+---
+
+## Update/Synchronization Behavior
+
+If the user says:
+
+- "publish to Notion" → publish the generated test cases.
+- "sync with Notion" → compare existing records and update matching Test Case IDs.
+- "update the Notion test cases" → update matching records.
+- "create a new Notion test suite" → create a new destination only if the available MCP capabilities and user permissions allow it.
+
+When synchronization is requested, preserve existing execution information where appropriate.
+
+For example, do not overwrite:
+
+- Actual Results
+- Execution Status
+- Tester
+- Execution Date
+
+unless the user explicitly asks for those values to be replaced.
+
+---
+
+## Verification
+
+After publishing:
+
+1. Read the created or updated Notion content.
+2. Confirm the expected number of test cases exists.
+3. Confirm Test Case IDs are present.
+4. Confirm requirement references are preserved.
+5. Confirm no unintended duplicates were created.
+6. Confirm the destination URL when available.
+
+Publication is considered verified only after the published content has been successfully checked.
+
+---
+
+## Error Handling
+
+If Notion MCP is unavailable:
+
+Do not fail the entire test-case-generation workflow.
+
+Generate the Excel workbook normally and report:
+
+> Notion publication was not performed because Notion MCP is unavailable in the current execution environment.
+
+If the MCP connection exists but the destination cannot be accessed:
+
+Report the access failure and continue providing the Excel workbook.
+
+If publication partially succeeds:
+
+Report the partial result accurately.
+
+Never claim publication succeeded unless the MCP operation actually succeeded.
+
+---
+
+## Security
+
+Never expose:
+
+- Notion API tokens;
+- MCP credentials;
+- authentication headers;
+- private integration secrets;
+- internal MCP configuration values.
+
+Never request that the user paste a Notion API token into the generated test-case output.
+
+Authentication must be handled by the MCP/client configuration.

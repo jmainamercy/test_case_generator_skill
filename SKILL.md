@@ -32,8 +32,10 @@ Parse & normalize input
    → Validate coverage & detect duplicates
    → Build validation summary
    → Generate the spreadsheet
+   → Publish to Notion (when requested and MCP is available)
+   → Verify Notion publication
    → Run the final quality gate
-   → Report a concise summary back to the user
+   → Report spreadsheet + Notion publication status
 ```
 
 ### 1. Parse and normalize the input
@@ -63,7 +65,7 @@ from an **assumption** you had to make. Anything too ambiguous to test meaningfu
 Read `references/test-design-techniques.md` for how to apply positive/negative testing, boundary
 value analysis, equivalence partitioning, required-field and data-validation testing, business-rule
 testing, authorization testing, workflow/state testing, error handling, integration testing, and
-regression considerations — and, just as importantly, when *not* to apply them. Only generate a
+regression considerations — and, just as importantly, when _not_ to apply them. Only generate a
 technique's tests where the requirement actually gives you something concrete to test against.
 
 ### 5. Generate test cases
@@ -139,13 +141,18 @@ Payload schema:
     }
   ],
   "validation_summary": [
-    {"item": "User stories identified", "result": "1", "details": "Login story"},
-    {"item": "Ambiguous requirements", "result": "0", "details": ""}
+    {
+      "item": "User stories identified",
+      "result": "1",
+      "details": "Login story"
+    },
+    { "item": "Ambiguous requirements", "result": "0", "details": "" }
   ]
 }
 ```
 
 Notes on the payload:
+
 - `test_cases` order determines ID order — assign IDs sequentially and globally unique across the
   whole workbook, even when multiple stories are involved. Never reset numbering per story.
 - Allowed values for `priority`/`severity`: Critical, High, Medium, Low (see column-spec.md for how
@@ -155,6 +162,204 @@ Notes on the payload:
   row automatically.
 - Filename convention: `Test_Cases_[Feature_or_Project_Name].xlsx`, or `Test_Cases.xlsx` if no
   feature/project name is available.
+
+## Notion Publishing
+
+The test-case generator can publish generated test cases to Notion when a Notion MCP connection is available in the execution environment.
+
+The Notion integration is an optional publishing layer. The core test-case generation workflow must continue to work even when Notion MCP is unavailable.
+
+Before publishing anything to Notion, read:
+
+`config/notion.md`
+
+### Publishing Trigger
+
+Publish to Notion when:
+
+- the user explicitly asks to publish, sync, export, or save the generated test cases to Notion; or
+- the user provides a Notion page/database destination and asks the skill to use it.
+
+Do not publish to Notion merely because Notion MCP happens to be available.
+
+If the user asks for both Excel and Notion, generate both.
+
+### Notion MCP Availability
+
+Before attempting publication:
+
+1. Determine whether Notion MCP tools are available in the current execution environment.
+2. If Notion MCP is available, use the available Notion MCP tools according to `config/notion.md`.
+3. If Notion MCP is not available:
+   - continue generating the Excel workbook;
+   - do not pretend that the Notion publication occurred;
+   - report that Notion publication could not be performed because Notion MCP is unavailable.
+
+Never fabricate a Notion page URL, database ID, page ID, or publication result.
+
+### Destination Handling
+
+Use the following priority order for determining the Notion destination:
+
+1. A Notion page/database explicitly provided by the user.
+2. A destination already identified in the current conversation.
+3. A configured/default destination, if one has been explicitly configured.
+4. Ask the user for the destination before publishing.
+
+Never select an arbitrary Notion page or database.
+
+If the user provides a Notion URL, use the Notion MCP capabilities available in the current environment to inspect and validate that destination before writing to it.
+
+### Publishing Mode
+
+Determine whether the destination is:
+
+- a Notion database intended to contain individual test cases; or
+- a Notion page intended to contain the complete generated test-case document.
+
+Prefer a Notion database when one exists specifically for test cases.
+
+If the destination is a database:
+
+- inspect the database schema before creating records;
+- map generated test-case fields to the available database properties;
+- preserve the Test Case ID;
+- preserve the Acceptance Criteria ID/reference;
+- preserve Priority, Severity, Test Type, and Testing Type;
+- preserve Preconditions, Test Data, Steps, and Expected Results;
+- leave Actual Results blank unless the user explicitly provides actual execution results;
+- do not invent values for properties that are not supported by the source requirements.
+
+If the destination is a page:
+
+Create or update a structured page containing:
+
+1. Test Case Generation Overview
+2. Validation Summary
+3. Test Cases
+4. Requirements Traceability Matrix
+5. Clarifications Required
+6. Generation Metadata
+
+### Test Case Database Mapping
+
+When publishing to a Notion database, use the following conceptual mapping where the corresponding properties exist:
+
+| Generated Field     | Notion Property     |
+| ------------------- | ------------------- |
+| Test Case ID        | Test Case ID        |
+| User Story          | User Story          |
+| Acceptance Criteria | Acceptance Criteria |
+| Test Case Title     | Title               |
+| Preconditions       | Preconditions       |
+| Test Data           | Test Data           |
+| Test Steps          | Steps               |
+| Expected Results    | Expected Results    |
+| Test Type           | Test Type           |
+| Testing Type        | Testing Type        |
+| Priority            | Priority            |
+| Severity            | Severity            |
+| Actual Results      | Actual Results      |
+| Status              | Status              |
+| Requirement ID      | Requirement ID      |
+| Feature             | Feature             |
+
+The exact Notion property names may differ.
+
+Inspect the actual destination schema and map fields to the closest matching properties rather than assuming the database uses these exact names.
+
+### Idempotency and Duplicate Prevention
+
+Do not blindly create duplicate Notion test cases.
+
+Before publishing:
+
+1. Identify the stable test-case key.
+2. Prefer `Test Case ID` as the primary identifier.
+3. Search the destination for an existing record with the same Test Case ID.
+4. If an existing record is found:
+   - update it only when the user requested synchronization/update; or
+   - ask for clarification if the requested publishing mode is ambiguous.
+5. If no matching record exists, create a new record.
+
+Do not overwrite unrelated test cases.
+
+### Publishing Order
+
+Publish the generated content only after:
+
+- requirements have been analyzed;
+- validation has been completed;
+- test cases have been generated;
+- the traceability matrix has been generated;
+- duplicate checks have been completed; and
+- the workbook payload has passed the internal validation checks.
+
+The Notion version must represent the same validated test-case set used to generate the Excel workbook.
+
+### Publication Verification
+
+After publishing:
+
+1. Confirm that the Notion page/database record was actually created or updated.
+2. Re-read the destination using the available Notion MCP tools where possible.
+3. Verify that:
+   - Test Case IDs are present;
+   - the number of published test cases matches the generated set;
+   - required fields were mapped;
+   - Acceptance Criteria references are preserved;
+   - no unexpected duplicates were introduced.
+4. Capture the resulting Notion page/database URL when the MCP response provides one.
+
+Only report:
+
+`Notion: Published and verified`
+
+when the publication operation succeeded and verification succeeded.
+
+If publication succeeded but verification could not be completed, report:
+
+`Notion: Published; verification incomplete`
+
+If publication failed, report:
+
+`Notion: Publication failed`
+
+and explain the available error without claiming success.
+
+### Failure Handling
+
+Notion publication failure must not invalidate the generated Excel workbook.
+
+If Notion MCP fails:
+
+1. Preserve the generated Excel workbook.
+2. Report the Notion failure clearly.
+3. Do not retry indefinitely.
+4. Do not fabricate a successful publication.
+5. Do not discard the generated test cases.
+
+### Final Response
+
+When both outputs are requested and successful, report:
+
+- Excel: Generated
+- Notion: Published and verified
+- Test Cases: `<count>`
+- Requirements Covered: `<count>`
+- Needs Clarification: `<count>`
+
+When Notion MCP is unavailable, report:
+
+- Excel: Generated
+- Notion: Not published
+- Reason: Notion MCP is not available in the current execution environment
+
+When Notion publication fails, report:
+
+- Excel: Generated
+- Notion: Publication failed
+- Reason: `<concise error>`
 
 ### 10. Final quality gate
 
